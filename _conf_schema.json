@@ -1,0 +1,44 @@
+{
+    "api_base_url": {
+        "type": "string",
+        "title": "API基础URL",
+        "description": "IndexTTS2 API的基础URL",
+        "default": "http://localhost:8000",
+        "required": true
+    },
+    "api_key": {
+        "type": "string",
+        "title": "API密钥",
+        "description": "IndexTTS2 API的认证密钥（如有）",
+        "default": "",
+        "required": false
+    },
+    "voice_id": {
+        "type": "string",
+        "title": "语音ID",
+        "description": "用于语音合成的voice ID",
+        "default": "",
+        "required": true
+    },
+    "enable_emotion": {
+        "type": "bool",
+        "title": "启用情绪检测",
+        "description": "是否使用AI检测文本情绪并应用到语音合成",
+        "default": true,
+        "required": false
+    },
+    "response_format": {
+        "type": "string",
+        "title": "音频格式",
+        "description": "输出音频格式（AstrBot 仅支持 wav）",
+        "default": "wav",
+        "required": false
+    },
+    "emotion_alpha": {
+        "type": "float",
+        "title": "情绪强度",
+        "description": "情绪表达强度，范围 0.0-1.0",
+        "default": 0.65,
+        "required": false
+    }
+}

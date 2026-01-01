@@ -1,0 +1,5 @@
+name: astrbot_plugin_tts_emotion
+description: TTS插件，支持使用AI检测文本情绪并合成带情绪的语音
+author: AstrBot
+version: 1.0.0
+repo: ""
