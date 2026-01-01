@@ -40,5 +40,89 @@
         "description": "情绪表达强度，范围 0.0-1.0",
         "default": 0.65,
         "required": false
+    },
+    "max_mel_tokens": {
+        "type": "int",
+        "title": "max_mel_tokens",
+        "description": "服务端 mel token 上限（提高可减少截断，但最坏情况下更慢/更吃显存）",
+        "default": 1500,
+        "required": false
+    },
+    "do_sample": {
+        "type": "bool",
+        "title": "do_sample",
+        "description": "是否采样（关闭后通常更稳定，但可能更“死板”，并依赖 beam search 参数）",
+        "default": true,
+        "required": false
+    },
+    "num_beams": {
+        "type": "int",
+        "title": "num_beams",
+        "description": "beam search 数量（do_sample=false 时更常用）",
+        "default": 3,
+        "required": false
+    },
+    "length_penalty": {
+        "type": "float",
+        "title": "length_penalty",
+        "description": "长度惩罚（可影响生成长度倾向）",
+        "default": 0,
+        "required": false
+    },
+    "diffusion_steps": {
+        "type": "int",
+        "title": "diffusion_steps",
+        "description": "扩散步数（越大越慢，可能更细腻）",
+        "default": 25,
+        "required": false
+    },
+    "inference_cfg_rate": {
+        "type": "float",
+        "title": "inference_cfg_rate",
+        "description": "CFG rate（影响生成风格/一致性，具体以服务端实现为准）",
+        "default": 0.7,
+        "required": false
+    },
+    "max_tokens_per_segment": {
+        "type": "int",
+        "title": "max_tokens_per_segment",
+        "description": "分段上限（更小更容易分段，降低单段超限概率，但更可能有断句/拼接感）",
+        "default": 120,
+        "required": false
+    },
+    "temperature": {
+        "type": "float",
+        "title": "temperature",
+        "description": "采样温度（更小更保守）",
+        "default": 0.8,
+        "required": false
+    },
+    "top_p": {
+        "type": "float",
+        "title": "top_p",
+        "description": "nucleus 采样 top_p（更小更保守）",
+        "default": 0.8,
+        "required": false
+    },
+    "top_k": {
+        "type": "int",
+        "title": "top_k",
+        "description": "top_k（更小更保守）",
+        "default": 30,
+        "required": false
+    },
+    "repetition_penalty": {
+        "type": "float",
+        "title": "repetition_penalty",
+        "description": "重复惩罚（适当提高可降低“拖很长/重复”概率）",
+        "default": 10,
+        "required": false
+    },
+    "interval_silence": {
+        "type": "int",
+        "title": "interval_silence",
+        "description": "段间静音（ms）",
+        "default": 200,
+        "required": false
     }
 }

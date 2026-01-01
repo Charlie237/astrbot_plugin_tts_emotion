@@ -246,6 +246,52 @@ class TTSEmotionPlugin(Star):
             self.logger.error("Voice ID not configured")
             return None
 
+        def as_int(value, default: int) -> int:
+            try:
+                if value is None or value == "":
+                    return default
+                return int(value)
+            except Exception:
+                return default
+
+        def as_float(value, default: float) -> float:
+            try:
+                if value is None or value == "":
+                    return default
+                return float(value)
+            except Exception:
+                return default
+
+        def as_bool(value, default: bool) -> bool:
+            if value is None or value == "":
+                return default
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return bool(value)
+            if isinstance(value, str):
+                v = value.strip().lower()
+                if v in {"1", "true", "yes", "y", "on", "开启"}:
+                    return True
+                if v in {"0", "false", "no", "n", "off", "关闭"}:
+                    return False
+            return default
+
+        x_advanced = {
+            "max_mel_tokens": as_int(self._get_config("max_mel_tokens", 1500), 1500),
+            "do_sample": as_bool(self._get_config("do_sample", True), True),
+            "num_beams": as_int(self._get_config("num_beams", 3), 3),
+            "length_penalty": as_float(self._get_config("length_penalty", 0), 0.0),
+            "diffusion_steps": as_int(self._get_config("diffusion_steps", 25), 25),
+            "inference_cfg_rate": as_float(self._get_config("inference_cfg_rate", 0.7), 0.7),
+            "max_tokens_per_segment": as_int(self._get_config("max_tokens_per_segment", 120), 120),
+            "temperature": as_float(self._get_config("temperature", 0.8), 0.8),
+            "top_p": as_float(self._get_config("top_p", 0.8), 0.8),
+            "top_k": as_int(self._get_config("top_k", 30), 30),
+            "repetition_penalty": as_float(self._get_config("repetition_penalty", 10), 10.0),
+            "interval_silence": as_int(self._get_config("interval_silence", 200), 200),
+        }
+
         headers = {
             "Content-Type": "application/json"
         }
@@ -263,7 +309,8 @@ class TTSEmotionPlugin(Star):
                 "type": "vector",
                 "vector": emotion_vector,
                 "alpha": emotion_alpha
-            }
+            },
+            "x_advanced": x_advanced,
         }
         
         try:
