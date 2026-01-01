@@ -363,10 +363,16 @@ class TTSEmotionPlugin(Star):
         if not ai_reply:
             return
         
-        # 获取用户消息
-        user_message = event.message_str or ""
+        # 获取用户消息（优先使用 message_obj 中的原始入站文本，避免 pipeline 阶段覆盖 message_str）
+        user_message = ""
+        try:
+            user_message = str(getattr(getattr(event, "message_obj", None), "message_str", "") or "")
+        except Exception:
+            user_message = ""
+        if not user_message:
+            user_message = event.message_str or ""
 
-        # 以 / 开头的指令不做 TTS，避免干扰其它插件命令（如 /help）
+        # 以 / 开头的指令不做 TTS，避免干扰其它插件命令（如 /help、/api测试）
         if user_message.lstrip().startswith("/"):
             return
 
