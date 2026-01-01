@@ -224,28 +224,59 @@ class TTSEmotionPlugin(Star):
         """调用IndexTTS2 API合成语音"""
         api_base_url = self._get_config("api_base_url", "http://localhost:8000")
         api_key = self._get_config("api_key", "")
-        voice_id = self._get_config("voice_id", "")
+        voice_id = (
+            self._get_config("voice_id", "")
+            or self._get_config("voice", "")
+            or ""
+        )
+        voice_name = str(self._get_config("voice_name", "") or "").strip()
         response_format = str(self._get_config("response_format", "wav") or "wav").lower()
         if response_format != "wav":
             response_format = "wav"
         emotion_alpha = self._get_config("emotion_alpha", 0.65)
-        
-        if not voice_id:
-            self.logger.error("Voice ID not configured")
-            return None
-        
-        url = f"{api_base_url.rstrip('/')}/v1/audio/speech"
         
         headers = {
             "Content-Type": "application/json"
         }
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
+
+        async def resolve_voice_id(session: aiohttp.ClientSession) -> str:
+            if voice_id:
+                return str(voice_id).strip()
+            try:
+                url = f"{api_base_url.rstrip('/')}/v1/audio/voices"
+                async with session.get(url, headers=headers) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        self.logger.error(f"List voices failed: {response.status} - {error_text}")
+                        return ""
+                    data = await response.json()
+            except Exception as e:
+                self.logger.error(f"List voices request failed: {e}")
+                return ""
+
+            voices = data.get("voices") if isinstance(data, dict) else None
+            if not isinstance(voices, list) or not voices:
+                self.logger.error("No voices returned from /v1/audio/voices; please configure voice_id")
+                return ""
+
+            if voice_name:
+                for v in voices:
+                    if isinstance(v, dict) and str(v.get("name", "")).strip() == voice_name:
+                        return str(v.get("id", "")).strip()
+
+            first = voices[0]
+            if isinstance(first, dict) and first.get("id"):
+                return str(first["id"]).strip()
+            return ""
         
+        url = f"{api_base_url.rstrip('/')}/v1/audio/speech"
+
         payload = {
             "model": "indextts2",
             "input": text,
-            "voice": voice_id,
+            "voice": "",
             "response_format": response_format,
             "x_emotion": {
                 "type": "vector",
@@ -256,6 +287,14 @@ class TTSEmotionPlugin(Star):
         
         try:
             async with aiohttp.ClientSession() as session:
+                resolved_voice_id = await resolve_voice_id(session)
+                if not resolved_voice_id:
+                    self.logger.error(
+                        "Voice ID not configured; set `voice_id` (or `voice`) in plugin config, "
+                        "or ensure /v1/audio/voices returns at least one voice."
+                    )
+                    return None
+                payload["voice"] = resolved_voice_id
                 async with session.post(url, headers=headers, json=payload) as response:
                     if response.status == 200:
                         return await response.read()

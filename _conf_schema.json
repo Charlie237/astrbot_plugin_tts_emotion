@@ -16,9 +16,16 @@
     "voice_id": {
         "type": "string",
         "title": "语音ID",
-        "description": "用于语音合成的voice ID",
+        "description": "用于语音合成的 voice ID（对应 IndexTTS2 的 SpeechRequest.voice）",
         "default": "",
         "required": true
+    },
+    "voice_name": {
+        "type": "string",
+        "title": "语音名称（可选）",
+        "description": "当 voice_id 未配置时，尝试从 /v1/audio/voices 按 name 匹配并自动选择",
+        "default": "",
+        "required": false
     },
     "enable_emotion": {
         "type": "bool",
