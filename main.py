@@ -10,6 +10,7 @@ import re
 import tempfile
 import aiohttp
 from typing import Optional, List
+from astrbot import logger as astr_logger
 from astrbot.api.star import Context, Star, register
 from astrbot.api.event import AstrMessageEvent
 from astrbot.api.event import filter
@@ -54,6 +55,7 @@ class TTSEmotionPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.context = context
+        self.logger = getattr(context, "logger", None) or astr_logger
         
     def _obj_to_dict(self, obj):
         if obj is None:
@@ -151,7 +153,7 @@ class TTSEmotionPlugin(Star):
             return ""
             
         except Exception as e:
-            self.context.logger.warning(f"Failed to get conversation history: {e}")
+            self.logger.warning(f"Failed to get conversation history: {e}")
             return ""
     
     def _parse_emotion_vector(self, response: str) -> Optional[List[float]]:
@@ -176,7 +178,7 @@ class TTSEmotionPlugin(Star):
             
             return None
         except (json.JSONDecodeError, ValueError, TypeError) as e:
-            self.context.logger.warning(f"Failed to parse emotion vector: {e}")
+            self.logger.warning(f"Failed to parse emotion vector: {e}")
             return None
     
     async def _detect_emotion_vector(self, user_message: str, ai_reply: str, 
@@ -187,7 +189,7 @@ class TTSEmotionPlugin(Star):
             provider = self.context.get_using_provider(umo=event.unified_msg_origin)
             
             if not provider:
-                self.context.logger.warning("No LLM provider available, using default emotion vector")
+                self.logger.warning("No LLM provider available, using default emotion vector")
                 return DEFAULT_EMOTION_VECTOR.copy()
             
             prompt = EMOTION_DETECTION_PROMPT.format(
@@ -211,11 +213,11 @@ class TTSEmotionPlugin(Star):
             if vector:
                 return vector
             
-            self.context.logger.warning(f"Could not parse emotion vector from response: {response_text[:100]}")
+            self.logger.warning(f"Could not parse emotion vector from response: {response_text[:100]}")
             return DEFAULT_EMOTION_VECTOR.copy()
             
         except Exception as e:
-            self.context.logger.error(f"Emotion detection failed: {e}")
+            self.logger.error(f"Emotion detection failed: {e}")
             return DEFAULT_EMOTION_VECTOR.copy()
     
     async def _synthesize_speech(self, text: str, emotion_vector: List[float]) -> Optional[bytes]:
@@ -229,7 +231,7 @@ class TTSEmotionPlugin(Star):
         emotion_alpha = self._get_config("emotion_alpha", 0.65)
         
         if not voice_id:
-            self.context.logger.error("Voice ID not configured")
+            self.logger.error("Voice ID not configured")
             return None
         
         url = f"{api_base_url.rstrip('/')}/v1/audio/speech"
@@ -259,12 +261,12 @@ class TTSEmotionPlugin(Star):
                         return await response.read()
                     else:
                         error_text = await response.text()
-                        self.context.logger.error(
+                        self.logger.error(
                             f"TTS API error: {response.status} - {error_text}"
                         )
                         return None
         except Exception as e:
-            self.context.logger.error(f"TTS API request failed: {e}")
+            self.logger.error(f"TTS API request failed: {e}")
             return None
     
     def _save_audio_to_temp(self, audio_data: bytes, format: str = "wav") -> str:
@@ -307,7 +309,7 @@ class TTSEmotionPlugin(Star):
         
         # 检测情绪向量
         if enable_emotion:
-            self.context.logger.info(f"Detecting emotion for reply: {ai_reply[:50]}...")
+            self.logger.info(f"Detecting emotion for reply: {ai_reply[:50]}...")
             
             # 获取对话历史上下文
             context_section = await self._get_conversation_history(event)
@@ -318,25 +320,25 @@ class TTSEmotionPlugin(Star):
                 context_section=context_section,
                 event=event
             )
-            self.context.logger.info(f"Detected emotion vector: {emotion_vector}")
+            self.logger.info(f"Detected emotion vector: {emotion_vector}")
         else:
             emotion_vector = DEFAULT_EMOTION_VECTOR.copy()
         
         # 合成语音
-        self.context.logger.info("Synthesizing speech...")
+        self.logger.info("Synthesizing speech...")
         audio_data = await self._synthesize_speech(ai_reply, emotion_vector)
         
         if not audio_data:
-            self.context.logger.warning("Failed to synthesize speech, keeping text response")
+            self.logger.warning("Failed to synthesize speech, keeping text response")
             return
         
         # 保存音频到临时文件
         response_format = self._get_config("response_format", "wav")
         audio_path = self._save_audio_to_temp(audio_data, response_format)
-        self.context.logger.info(f"Audio saved to: {audio_path}")
+        self.logger.info(f"Audio saved to: {audio_path}")
         
         # 创建音频消息组件并添加到消息链
         record = Record(file=audio_path)
         result.chain.append(record)
         
-        self.context.logger.info("Audio message appended to response chain")
+        self.logger.info("Audio message appended to response chain")
