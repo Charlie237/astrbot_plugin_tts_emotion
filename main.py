@@ -21,6 +21,8 @@ from astrbot.api.message_components import Record, Plain
 # 向量格式: [happy, angry, sad, afraid, disgusted, melancholic, surprised, calm]
 DEFAULT_EMOTION_VECTOR = [0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
 
+PLUGIN_ID = "astrbot_plugin_tts_emotion"
+
 # 情绪检测的提示词 - 带上下文分析
 EMOTION_DETECTION_PROMPT = """分析以下对话的情绪，根据对话上下文和当前回复，输出8个0到1之间的数值，表示当前回复应该用什么情绪表达。
 
@@ -48,7 +50,7 @@ EMOTION_DETECTION_PROMPT = """分析以下对话的情绪，根据对话上下�
 情绪向量:"""
 
 
-@register("astrbot_plugin_tts_emotion", "AstrBot", "TTS插件，支持AI情绪检测和带情绪的语音合成", "1.0.0")
+@register(PLUGIN_ID, "AstrBot", "TTS插件，支持AI情绪检测和带情绪的语音合成", "1.0.0")
 class TTSEmotionPlugin(Star):
     """TTS插件，使用AI检测情绪并合成语音"""
     
@@ -56,6 +58,7 @@ class TTSEmotionPlugin(Star):
         super().__init__(context)
         self.context = context
         self.logger = getattr(context, "logger", None) or astr_logger
+        self._session_enabled: dict[str, bool] = {}
         
     def _obj_to_dict(self, obj):
         if obj is None:
@@ -93,7 +96,8 @@ class TTSEmotionPlugin(Star):
 
         plugin_settings_dict = self._obj_to_dict(plugin_settings)
         if isinstance(plugin_settings_dict, dict):
-            for plugin_key in ("tts_emotion", "astrbot_plugin_tts_emotion"):
+            # 优先取当前插件 ID 的配置，避免旧插件 ID 的空配置覆盖新配置。
+            for plugin_key in (PLUGIN_ID, "tts_emotion"):
                 plugin_cfg = plugin_settings_dict.get(plugin_key)
                 plugin_cfg_dict = self._obj_to_dict(plugin_cfg)
                 if isinstance(plugin_cfg_dict, dict):
@@ -322,6 +326,55 @@ class TTSEmotionPlugin(Star):
             if isinstance(component, Plain):
                 texts.append(component.text)
         return "".join(texts)
+
+    async def _get_session_key(self, event: AstrMessageEvent) -> str:
+        uid = event.unified_msg_origin
+        conv_mgr = self.context.conversation_manager
+        if not conv_mgr:
+            return uid
+        try:
+            curr_cid = await conv_mgr.get_curr_conversation_id(uid)
+        except Exception:
+            curr_cid = None
+        return f"{uid}:{curr_cid}" if curr_cid else uid
+
+    async def _is_enabled_for_session(self, event: AstrMessageEvent) -> bool:
+        key = await self._get_session_key(event)
+        if key in self._session_enabled:
+            return self._session_enabled[key]
+        return True
+
+    @filter.command("tts_emo")
+    async def cmd_tts_emo(self, event: AstrMessageEvent):
+        """
+        /tts_emo [on|off|toggle|status]
+
+        仅对当前会话生效（内存态），不影响后台的全局插件启用状态。
+        """
+        msg = (event.message_str or "").strip()
+        parts = msg.split()
+        action = parts[1].lower() if len(parts) >= 2 else "toggle"
+
+        session_key = await self._get_session_key(event)
+        current = self._session_enabled.get(session_key, True)
+
+        if action in {"on", "enable", "1", "true", "开启"}:
+            new_val = True
+        elif action in {"off", "disable", "0", "false", "关闭"}:
+            new_val = False
+        elif action in {"status", "show", "?"}:
+            new_val = current
+        else:
+            new_val = not current
+
+        self._session_enabled[session_key] = new_val
+
+        status_text = "已开启" if new_val else "已关闭"
+        # 兼容不同 AstrBot 版本的结果 API
+        if hasattr(event, "plain_result") and callable(getattr(event, "plain_result")):
+            yield event.plain_result(f"TTS Emotion（当前会话）{status_text}")
+        else:
+            yield [Plain(f"TTS Emotion（当前会话）{status_text}")]
     
     @filter.on_decorating_result()
     async def convert_to_speech(self, event: AstrMessageEvent):
@@ -343,6 +396,13 @@ class TTSEmotionPlugin(Star):
         
         # 获取用户消息
         user_message = event.message_str or ""
+
+        # 命令回执不做 TTS，避免产生干扰
+        if re.match(r"^\s*/?tts_emo\b", user_message):
+            return
+
+        if not await self._is_enabled_for_session(event):
+            return
         
         enable_emotion = self._get_config("enable_emotion", True)
         
