@@ -27,8 +27,8 @@ DEFAULT_EMOTION_VECTOR = [0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
 
 PLUGIN_ID = "astrbot_plugin_tts_emotion"
 
-# 情绪检测的提示词 - 带上下文分析
-EMOTION_DETECTION_PROMPT = """分析以下对话的情绪，根据对话上下文和当前回复，输出8个0到1之间的数值，表示当前回复应该用什么情绪表达。
+# 情绪检测的提示词 - 轻量模式（仅使用当前用户消息 + 当前回复）
+EMOTION_DETECTION_PROMPT = """分析当前 AI 回复应该用什么情绪表达，只根据「当前用户消息」与「当前AI回复」判断，输出8个0到1之间的数值。
 
 8个维度依次是：
 1. happy (快乐)
@@ -42,13 +42,11 @@ EMOTION_DETECTION_PROMPT = """分析以下对话的情绪，根据对话上下�
 
 一句话可能包含多种情绪，请根据情绪强度给出合理的数值。所有数值之和不需要等于1。
 
-{context_section}
-
 当前用户消息: {user_message}
 
 当前AI回复: {ai_reply}
 
-请根据对话上下文和当前回复的内容，判断AI应该用什么情绪语气说这段话。
+请判断 AI 应该用什么情绪语气说这段话。
 只输出JSON数组，格式如：[0.8, 0.0, 0.1, 0.0, 0.0, 0.0, 0.2, 0.3]
 
 情绪向量:"""
@@ -195,9 +193,13 @@ class TTSEmotionPlugin(Star):
             self.logger.warning(f"Failed to parse emotion vector: {e}")
             return None
     
-    async def _detect_emotion_vector(self, user_message: str, ai_reply: str, 
-                                      context_section: str, event: AstrMessageEvent) -> List[float]:
-        """使用LLM检测文本情绪，考虑对话上下文，直接返回8维向量"""
+    async def _detect_emotion_vector(
+        self,
+        user_message: str,
+        ai_reply: str,
+        event: AstrMessageEvent,
+    ) -> List[float]:
+        """使用LLM检测文本情绪（仅当前用户消息 + 当前回复），直接返回8维向量"""
         try:
             # 获取当前会话使用的 LLM provider
             provider = self.context.get_using_provider(umo=event.unified_msg_origin)
@@ -207,7 +209,6 @@ class TTSEmotionPlugin(Star):
                 return DEFAULT_EMOTION_VECTOR.copy()
             
             prompt = EMOTION_DETECTION_PROMPT.format(
-                context_section=context_section if context_section else "（无历史对话）",
                 user_message=user_message[:300],  # 限制长度
                 ai_reply=ai_reply[:500]
             )
@@ -377,14 +378,10 @@ class TTSEmotionPlugin(Star):
         # 检测情绪向量
         if enable_emotion:
             self.logger.info(f"Detecting emotion for reply: {ai_reply[:50]}...")
-            
-            # 获取对话历史上下文
-            context_section = await self._get_conversation_history(event)
-            
+
             emotion_vector = await self._detect_emotion_vector(
                 user_message=user_message,
                 ai_reply=ai_reply,
-                context_section=context_section,
                 event=event
             )
             self.logger.info(f"Detected emotion vector: {emotion_vector}")
