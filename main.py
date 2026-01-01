@@ -10,11 +10,10 @@ import re
 import tempfile
 import aiohttp
 from typing import Optional, List
-from astrbot.api.star import Star, register
+from astrbot.api.star import Context, Star, register
 from astrbot.api.event import AstrMessageEvent
 from astrbot.api.event import filter
 from astrbot.api.message_components import Record, Plain
-from astrbot.api.context import Context
 
 
 # 默认的中性情绪向量
