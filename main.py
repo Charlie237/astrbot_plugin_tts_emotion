@@ -9,8 +9,12 @@ import json
 import re
 import tempfile
 import aiohttp
-from typing import Optional, List
+from typing import Optional, List, Any
 from astrbot import logger as astr_logger
+try:
+    from astrbot.api import AstrBotConfig
+except Exception:  # pragma: no cover
+    AstrBotConfig = Any  # type: ignore
 from astrbot.api.star import Context, Star, register
 from astrbot.api.event import AstrMessageEvent
 from astrbot.api.event import filter
@@ -54,10 +58,11 @@ EMOTION_DETECTION_PROMPT = """分析以下对话的情绪，根据对话上下�
 class TTSEmotionPlugin(Star):
     """TTS插件，使用AI检测情绪并合成语音"""
     
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config: Optional[AstrBotConfig] = None):
         super().__init__(context)
         self.context = context
         self.logger = getattr(context, "logger", None) or astr_logger
+        self.config = config
         self._session_enabled: dict[str, bool] = {}
         
     def _obj_to_dict(self, obj):
@@ -85,6 +90,11 @@ class TTSEmotionPlugin(Star):
         - 整体配置（包含 `plugin_settings`）
         - 或仅返回当前插件的配置字典
         """
+        if self.config is not None:
+            config_dict = self._obj_to_dict(self.config)
+            if isinstance(config_dict, dict):
+                return config_dict
+
         config = self.context.get_config()
         config_dict = self._obj_to_dict(config) or {}
 
