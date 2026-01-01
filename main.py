@@ -238,60 +238,26 @@ class TTSEmotionPlugin(Star):
         """调用IndexTTS2 API合成语音"""
         api_base_url = self._get_config("api_base_url", "http://localhost:8000")
         api_key = self._get_config("api_key", "")
-        voice_id = (
-            self._get_config("voice_id", "")
-            or self._get_config("voice", "")
-            or ""
-        )
-        voice_name = str(self._get_config("voice_name", "") or "").strip()
-        response_format = str(self._get_config("response_format", "wav") or "wav").lower()
-        if response_format != "wav":
-            response_format = "wav"
+        voice_id = str(self._get_config("voice_id", "") or "").strip()
         emotion_alpha = self._get_config("emotion_alpha", 0.65)
         
+        if not voice_id:
+            self.logger.error("Voice ID not configured")
+            return None
+
         headers = {
             "Content-Type": "application/json"
         }
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-
-        async def resolve_voice_id(session: aiohttp.ClientSession) -> str:
-            if voice_id:
-                return str(voice_id).strip()
-            try:
-                url = f"{api_base_url.rstrip('/')}/v1/audio/voices"
-                async with session.get(url, headers=headers) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        self.logger.error(f"List voices failed: {response.status} - {error_text}")
-                        return ""
-                    data = await response.json()
-            except Exception as e:
-                self.logger.error(f"List voices request failed: {e}")
-                return ""
-
-            voices = data.get("voices") if isinstance(data, dict) else None
-            if not isinstance(voices, list) or not voices:
-                self.logger.error("No voices returned from /v1/audio/voices; please configure voice_id")
-                return ""
-
-            if voice_name:
-                for v in voices:
-                    if isinstance(v, dict) and str(v.get("name", "")).strip() == voice_name:
-                        return str(v.get("id", "")).strip()
-
-            first = voices[0]
-            if isinstance(first, dict) and first.get("id"):
-                return str(first["id"]).strip()
-            return ""
         
         url = f"{api_base_url.rstrip('/')}/v1/audio/speech"
 
         payload = {
             "model": "indextts2",
             "input": text,
-            "voice": "",
-            "response_format": response_format,
+            "voice": voice_id,
+            "response_format": "wav",
             "x_emotion": {
                 "type": "vector",
                 "vector": emotion_vector,
@@ -301,14 +267,6 @@ class TTSEmotionPlugin(Star):
         
         try:
             async with aiohttp.ClientSession() as session:
-                resolved_voice_id = await resolve_voice_id(session)
-                if not resolved_voice_id:
-                    self.logger.error(
-                        "Voice ID not configured; set `voice_id` (or `voice`) in plugin config, "
-                        "or ensure /v1/audio/voices returns at least one voice."
-                    )
-                    return None
-                payload["voice"] = resolved_voice_id
                 async with session.post(url, headers=headers, json=payload) as response:
                     if response.status == 200:
                         return await response.read()
@@ -407,8 +365,8 @@ class TTSEmotionPlugin(Star):
         # 获取用户消息
         user_message = event.message_str or ""
 
-        # 命令回执不做 TTS，避免产生干扰
-        if re.match(r"^\s*/?tts_emo\b", user_message):
+        # 以 / 开头的指令不做 TTS，避免干扰其它插件命令（如 /help）
+        if user_message.lstrip().startswith("/"):
             return
 
         if not await self._is_enabled_for_session(event):
@@ -442,12 +400,15 @@ class TTSEmotionPlugin(Star):
             return
         
         # 保存音频到临时文件
-        response_format = self._get_config("response_format", "wav")
-        audio_path = self._save_audio_to_temp(audio_data, response_format)
+        audio_path = self._save_audio_to_temp(audio_data, "wav")
         self.logger.info(f"Audio saved to: {audio_path}")
         
         # 创建音频消息组件并添加到消息链
         record = Record(file=audio_path)
         result.chain.append(record)
+
+        dual_output = self._get_config("dual_output", True)
+        if not dual_output:
+            result.chain = [c for c in result.chain if not isinstance(c, Plain)]
         
         self.logger.info("Audio message appended to response chain")

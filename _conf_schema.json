@@ -16,16 +16,9 @@
     "voice_id": {
         "type": "string",
         "title": "语音ID",
-        "description": "用于语音合成的 voice ID（对应 IndexTTS2 的 SpeechRequest.voice）",
+        "description": "用于语音合成的 voice ID（IndexTTS2 SpeechRequest.voice）",
         "default": "",
         "required": true
-    },
-    "voice_name": {
-        "type": "string",
-        "title": "语音名称（可选）",
-        "description": "当 voice_id 未配置时，尝试从 /v1/audio/voices 按 name 匹配并自动选择",
-        "default": "",
-        "required": false
     },
     "enable_emotion": {
         "type": "bool",
@@ -34,11 +27,11 @@
         "default": true,
         "required": false
     },
-    "response_format": {
-        "type": "string",
-        "title": "音频格式",
-        "description": "输出音频格式（AstrBot 仅支持 wav）",
-        "default": "wav",
+    "dual_output": {
+        "type": "bool",
+        "title": "同时发送文字",
+        "description": "开启时保留原文字回复并追加语音；关闭时仅发送语音（会移除文本组件）",
+        "default": true,
         "required": false
     },
     "emotion_alpha": {
